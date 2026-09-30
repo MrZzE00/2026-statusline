@@ -75,24 +75,6 @@ Any segment whose data is missing **disappears** rather than showing a zero: at
 the start of a session and right after a `/compact`, the context percentage is
 `null` — a bar at 0% would be a lie.
 
-## Two details that cost me dearly
-
-Both are commented in the script; here they are for anyone building their own.
-
-**The separator is `US` (0x1f), not a tab.** A tab is one of `IFS`'s whitespace
-characters, so `read` collapses consecutive delimiters and **shifts the fields**
-as soon as an intermediate field is empty. With `@tsv`, a `null`
-`used_percentage` made the script read the cost where the context percentage was
-expected. `0x1f` is not a whitespace character, so empty fields are preserved.
-
-**Formatting goes through `/usr/bin/printf`, not the bash builtin.** Under
-`LANG=fr_FR.UTF-8`, the builtin rejects `"23.5"` ("invalid number"), prints `0`
-and pollutes `stderr` — and prefixing `LC_ALL=C` does not reload the locale of a
-builtin on bash 3.2 (the version macOS ships). `awk` is not an alternative: it
-returns `0,15`, with a comma.
-
-Note: the comments inside the script itself are in French.
-
 ## Customising
 
 Almost everything sits near the top of the file:

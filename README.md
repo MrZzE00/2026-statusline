@@ -1,37 +1,36 @@
 # statusline-command.sh
 
-Une ligne de statut pour [Claude Code](https://claude.com/claude-code) qui affiche,
-à chaque rafraîchissement, **ce que la session est en train de consommer** :
-le remplissage de la fenêtre de contexte, le coût estimé, et la part déjà
-utilisée du quota de 5 heures.
+A status line for [Claude Code](https://claude.com/claude-code) that shows, on
+every refresh, **what the session is actually consuming**: how full the context
+window is, the estimated cost, and how much of the 5-hour quota is already gone.
 
 ```
 Opus 5 | webapp-6demos | ~/Desktop/DROPS/2026-WAXConf | [####------] 43% | $1.23 | 5h:18%
 ```
 
-De gauche à droite : le modèle, la branche git, le chemin courant, la barre de
-contexte, le coût de la session, le quota 5 h.
+Left to right: model, git branch, current path, context bar, session cost,
+5-hour quota.
 
-## Pourquoi
+## Why
 
-Un agent qui travaille bien est un agent dont on voit le budget. Le contexte se
-remplit sans bruit, le coût s'accumule sans bruit, le quota se consomme sans
-bruit — et on ne s'en aperçoit qu'au moment où la session se dégrade ou
-s'arrête. Une ligne de statut rend ces trois grandeurs visibles **en
-permanence**, sans commande à taper.
+An agent that works well is an agent whose budget you can see. The context fills
+up quietly, the cost adds up quietly, the quota drains quietly — and you only
+notice at the point where the session degrades or stops. A status line keeps
+those three numbers **permanently** visible, with no command to type.
 
-C'est aussi un outil pédagogique : la barre qui passe au jaune puis au rouge
-apprend, en quelques sessions, à découper le travail, à ouvrir une session neuve
-au bon moment et à `/compact` avant d'y être forcé.
+It is also a teaching tool: a bar that turns yellow and then red teaches you,
+within a few sessions, to split the work up, to start a fresh session at the
+right moment, and to `/compact` before you are forced to.
 
-Partagé à l'occasion du talk **« Heroes : save the token, save the world »**
+Shared for the talk **"Heroes: save the token, save the world"**
 (WAX 2026, Marseille).
 
-## Installation
+## Install
 
-**Prérequis** : `bash`, `jq`, `git` (la branche est simplement omise hors dépôt).
+**Requirements**: `bash`, `jq`, `git` (the branch segment is simply omitted
+outside a repository).
 
-1. Copier le script :
+1. Grab the script:
 
 ```sh
 mkdir -p ~/.claude
@@ -40,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/MrZzE00/2026-statusline/main/status
 chmod +x ~/.claude/statusline-command.sh
 ```
 
-2. Le déclarer dans `~/.claude/settings.json` :
+2. Declare it in `~/.claude/settings.json`:
 
 ```json
 {
@@ -51,60 +50,61 @@ chmod +x ~/.claude/statusline-command.sh
 }
 ```
 
-3. Relancer Claude Code. La ligne apparaît sous le prompt.
+3. Restart Claude Code. The line shows up under the prompt.
 
-Pour ne l'activer que sur un projet, mettre la même clé dans le
-`.claude/settings.json` du dépôt plutôt que dans le fichier global.
+To enable it for a single project, put the same key in that repository's
+`.claude/settings.json` instead of the global file.
 
-## Ce que fait le script
+## What the script does
 
-Claude Code envoie sur l'entrée standard un objet JSON décrivant l'état de la
-session, et affiche la sortie standard du script comme ligne de statut. Ce
-script lit six champs en **un seul appel à `jq`** — un appel par champ serait
-payé à chaque rafraîchissement — puis compose les segments.
+Claude Code writes a JSON object describing the session state to stdin, and
+renders the script's stdout as the status line. This script reads the fields it
+needs in **a single `jq` call** — one call per field would be paid on every
+refresh — then assembles the segments.
 
-| Segment | Source JSON | Comportement |
+| Segment | JSON source | Behaviour |
 |---|---|---|
-| Modèle | `.model.display_name` | omis si absent |
-| Branche | `git branch --show-current` | SHA court si HEAD détachée ; omis hors dépôt |
-| Chemin | `.workspace.current_dir` / `.cwd` | `$HOME` réduit à `~` |
-| Contexte | `.context_window.used_percentage` | barre 10 crans, vert < 50 %, jaune 50-79 %, rouge ≥ 80 % |
-| Coût | `.cost.total_cost_usd` | estimation client, en USD |
-| Quota 5 h | `.rate_limits.five_hour.used_percentage` | abonnements Pro/Max uniquement |
+| Model | `.model.display_name` | omitted when absent |
+| Branch | `git branch --show-current` | short SHA when HEAD is detached; omitted outside a repo |
+| Path | `.workspace.current_dir` / `.cwd` | `$HOME` collapsed to `~` |
+| Context | `.context_window.used_percentage` | 10-step bar, green < 50%, yellow 50-79%, red ≥ 80% |
+| Cost | `.cost.total_cost_usd` | client-side estimate, in USD |
+| 5-hour quota | `.rate_limits.five_hour.used_percentage` | Pro/Max subscribers only |
 
-Tout segment dont la donnée est absente **disparaît** au lieu d'afficher un
-zéro : au démarrage d'une session et juste après un `/compact`, le pourcentage
-de contexte est `null` — une barre à 0 % serait un mensonge.
+Any segment whose data is missing **disappears** rather than showing a zero: at
+the start of a session and right after a `/compact`, the context percentage is
+`null` — a bar at 0% would be a lie.
 
-## Deux détails qui ont coûté cher
+## Two details that cost me dearly
 
-Ils sont commentés dans le script ; les voici pour qui voudrait s'en inspirer.
+Both are commented in the script; here they are for anyone building their own.
 
-**Le séparateur est `US` (0x1f), pas une tabulation.** La tabulation fait partie
-des caractères d'espacement d'`IFS` : `read` fusionne alors les délimiteurs
-consécutifs et **décale les champs** dès qu'un champ intermédiaire est vide.
-Avec `@tsv`, un `used_percentage` à `null` faisait lire le coût à la place du
-pourcentage de contexte. `0x1f` n'est pas un caractère d'espacement, les champs
-vides sont préservés.
+**The separator is `US` (0x1f), not a tab.** A tab is one of `IFS`'s whitespace
+characters, so `read` collapses consecutive delimiters and **shifts the fields**
+as soon as an intermediate field is empty. With `@tsv`, a `null`
+`used_percentage` made the script read the cost where the context percentage was
+expected. `0x1f` is not a whitespace character, so empty fields are preserved.
 
-**Le formatage passe par `/usr/bin/printf`, pas par le builtin bash.** Sous
-`LANG=fr_FR.UTF-8`, le builtin refuse `"23.5"` (« invalid number »), affiche `0`
-et pollue `stderr` — et préfixer `LC_ALL=C` ne recharge pas la locale d'un
-builtin sur bash 3.2 (la version livrée avec macOS). `awk` n'est pas une
-alternative : il rend `0,15`, avec une virgule.
+**Formatting goes through `/usr/bin/printf`, not the bash builtin.** Under
+`LANG=fr_FR.UTF-8`, the builtin rejects `"23.5"` ("invalid number"), prints `0`
+and pollutes `stderr` — and prefixing `LC_ALL=C` does not reload the locale of a
+builtin on bash 3.2 (the version macOS ships). `awk` is not an alternative: it
+returns `0,15`, with a comma.
 
-## Personnaliser
+Note: the comments inside the script itself are in French.
 
-Tout est en haut du fichier ou presque :
+## Customising
 
-- **couleurs** : les constantes `COLOR_*`, en séquences ANSI atténuées (`\033[2;..m`) ;
-- **seuils de la barre** : les comparaisons `-lt 50` et `-lt 80` ;
-- **largeur de la barre** : `bar_width=10` ;
-- **ordre et présence des segments** : le bloc `segments+=(...)` à la fin ;
-- **caractères de la barre** : `#` et `-`, volontairement en ASCII pour rester
-  lisible sur un terminal de conférence ou un vidéoprojecteur.
+Almost everything sits near the top of the file:
 
-## Tester sans lancer Claude Code
+- **colours**: the `COLOR_*` constants, dimmed ANSI sequences (`\033[2;..m`);
+- **bar thresholds**: the `-lt 50` and `-lt 80` comparisons;
+- **bar width**: `bar_width=10`;
+- **segment order and presence**: the `segments+=(...)` block at the end;
+- **bar characters**: `#` and `-`, deliberately ASCII so they stay legible on a
+  conference terminal or a projector.
+
+## Testing without launching Claude Code
 
 ```sh
 echo '{"workspace":{"current_dir":"'"$HOME"'"},"model":{"display_name":"Opus 5"},
@@ -112,6 +112,6 @@ echo '{"workspace":{"current_dir":"'"$HOME"'"},"model":{"display_name":"Opus 5"}
        "rate_limits":{"five_hour":{"used_percentage":18}}}' | ./statusline-command.sh
 ```
 
-## Licence
+## License
 
-MIT — voir [LICENSE](LICENSE). Reprenez, modifiez, partagez.
+MIT — see [LICENSE](LICENSE). Take it, change it, pass it on.
